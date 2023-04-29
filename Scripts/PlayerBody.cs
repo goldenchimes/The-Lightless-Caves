@@ -2,23 +2,23 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class RobotBody : MonoBehaviour
+public class PlayerBody : MonoBehaviour
 {
     [SerializeField]
-    GameObject robot;
+    GameObject player;
 
     void GetFlashlight(GameObject flashlight)
     {
-        robot.SendMessage("GetFlashlight", flashlight);
+        player.SendMessage("GetFlashlight", flashlight);
     }
 
     void GetFlare(GameObject flare)
     {
-        robot.SendMessage("GetFlare", flare);
+        player.SendMessage("GetFlare", flare);
     }
 
     void GetFloodlight(GameObject floodlight)
     {
-        robot.SendMessage("GetFloodlight", floodlight);
+        player.SendMessage("GetFloodlight", floodlight);
     }
 }

@@ -24,35 +24,36 @@ public class SlideMover : MonoBehaviour
 
     void FixedUpdate()
     {
-        if (go)
+        if (go && transform.position != target)
         {
             delta += speed * Time.deltaTime;
-            transform.position = Vector3.Lerp(
-                start,
-                target,
-                delta
-            );
+            transform.position = Vector3.Lerp(start, target, delta);
+        }
+        go = true;
+    }
+
+    void OnStop()
+    {
+        if (enabled)
+        {
+            go = false;
             if (transform.position == target)
             {
-                go = false;
+                Vector3 oldStart = start;
+                start = target;
+                target = oldStart;
+                delta = (transform.position - start).magnitude / (target - start).magnitude;
             }
         }
     }
 
-    void OnSlide()
+    void Triggerable()
     {
-        go = true;
-        if (transform.position == target)
-        {
-            Vector3 oldStart = start;
-            start = target;
-            target = oldStart;
-            delta = (transform.position - start).magnitude / (target - start).magnitude;
-        }
+        enabled = true;
     }
 
-    void OffSlide()
+    void Untriggerable()
     {
-        go = false;
+        enabled = false;
     }
 }

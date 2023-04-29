@@ -4,20 +4,16 @@ using UnityEngine;
 
 public class Stopper : MonoBehaviour
 {
-    Rigidbody rb;
-
-    void Awake()
-    {
-        rb = GetComponent<Rigidbody>();
-    }
+    FixedJoint joint;
 
     void OnEnable()
     {
-        rb.isKinematic = false;
+        Destroy(joint);
     }
 
-    void OnCollisionEnter()
+    void OnCollisionEnter(Collision collision)
     {
-        rb.isKinematic = true;
+        joint = gameObject.AddComponent<FixedJoint>();
+        joint.connectedBody = collision.rigidbody;
     }
 }

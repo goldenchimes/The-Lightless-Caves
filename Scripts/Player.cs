@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Robot : MonoBehaviour
+public class Player : MonoBehaviour
 {
     [SerializeField]
     GameObject body;
@@ -30,16 +30,18 @@ public class Robot : MonoBehaviour
     GameObject flareFindMessage;
     [SerializeField]
     GameObject floodlightFindMessage;
+    [SerializeField]
+    GameObject outOfFuelMessage;
 
     bool hasFlashlight = false;
     bool hasFlare = false;
     bool hasFloodlight = false;
     bool grounded = false;
     bool refuel = false;
-    float maxFuelSeconds = 60.0f * 10.0f;
-    float fuelSeconds = 60.0f * 10.0f;
+    float maxFuelSeconds = 60.0f;
+    float fuelSeconds = 0.0f;
     float maxLiftSeconds = 2.0f;
-    float liftSeconds = 2.0f;
+    float liftSeconds = 0.0f;
     Vector2 movement = Vector2.zero;
     float focusDelta = 120.0f;
     float maxSpeed = 10.0f;
@@ -49,12 +51,17 @@ public class Robot : MonoBehaviour
     GameObject flashlight;
     GameObject flare;
     GameObject floodlight;
+    bool won = false;
+    bool rotatedFlashlight = false;
+    bool toggledFlashlight = false;
 
     Rigidbody rb;
 
     void Awake()
     {
         rb = GetComponent<Rigidbody>();
+        fuelSeconds = maxFuelSeconds;
+        liftSeconds = maxLiftSeconds;
     }
 
     void Update()
@@ -71,28 +78,51 @@ public class Robot : MonoBehaviour
         UpdateVertical();
         UpdateHorizontal();
         grounded = false;
+        if (!won && fuelSeconds <= 0.0f && liftSeconds <= 0.0f && !outOfFuelMessage.activeSelf)
+        {
+            if (flashlightFindMessage != null)
+            {
+                flashlightFindMessage.SetActive(false);
+            }
+            if (flareFindMessage != null)
+            {
+                flareFindMessage.SetActive(false);
+            }
+            if (floodlightFindMessage != null)
+            {
+                floodlightFindMessage.SetActive(false);
+            }
+            outOfFuelMessage.SetActive(true);
+        }
     }
 
     void UpdateVertical()
     {
         if (movement.y <= 0.0f || refuel)
         {
-            refuel = movement.y > 0.0f;
-            if (lift.activeSelf)
+            if (fuelSeconds > 0.0f)
             {
-                lift.SetActive(false);
-            }
-            if (liftSeconds < maxLiftSeconds)
-            {
-                float delta = Time.deltaTime / 3;
-                if (liftSeconds + delta > maxLiftSeconds)
+                refuel = movement.y > 0.0f;
+                if (lift.activeSelf)
                 {
-                    delta = maxLiftSeconds - liftSeconds;
+                    lift.SetActive(false);
                 }
-                liftSeconds += delta;
-                fuelSeconds -= delta;
-                tank.SendMessage("SetPercentage", fuelSeconds / maxFuelSeconds);
-                burst.SendMessage("SetPercentage", liftSeconds / maxLiftSeconds);
+                if (liftSeconds < maxLiftSeconds)
+                {
+                    float delta = Time.deltaTime / 3;
+                    if (liftSeconds + delta > maxLiftSeconds)
+                    {
+                        delta = maxLiftSeconds - liftSeconds;
+                    }
+                    if (delta > fuelSeconds)
+                    {
+                        delta = fuelSeconds;
+                    }
+                    liftSeconds += delta;
+                    fuelSeconds -= delta;
+                    tank.SendMessage("SetPercentage", fuelSeconds / maxFuelSeconds);
+                    burst.SendMessage("SetPercentage", liftSeconds / maxLiftSeconds);
+                }
             }
         }
         else if (liftSeconds > 0.0f)
@@ -114,41 +144,48 @@ public class Robot : MonoBehaviour
 
     void UpdateHorizontal()
     {
-        if (movement.x != 0.0f)
+        if (fuelSeconds > 0.0f)
         {
-            Vector3 force = grounded ? groundedThrustForce : flyingThrustForce;
-            Vector3 scale = body.transform.localScale;
-            if (movement.x < 0.0f)
+            if (movement.x != 0.0f)
             {
-                force.x *= -1;
-                scale.x = -1;
-            }
-            else
-            {
-                scale.x = 1.0f;
-            }
-            if (Mathf.Abs(rb.velocity.x) >= maxSpeed)
-            {
-                if (
-                    (rb.velocity.x < 0 && force.x < 0)
-                    || (rb.velocity.x > 0 && force.x > 0)
-                )
+                Vector3 force = grounded ? groundedThrustForce : flyingThrustForce;
+                Vector3 scale = body.transform.localScale;
+                if (movement.x < 0.0f)
                 {
-                    force.x = 0.0f;
+                    force.x *= -1;
+                    scale.x = -1;
+                }
+                else
+                {
+                    scale.x = 1.0f;
+                }
+                if (Mathf.Abs(rb.velocity.x) >= maxSpeed)
+                {
+                    if (
+                        (rb.velocity.x < 0 && force.x < 0)
+                        || (rb.velocity.x > 0 && force.x > 0)
+                    )
+                    {
+                        force.x = 0.0f;
+                    }
+                }
+                body.transform.localScale = scale;
+                rb.AddForce(force);
+                fuelSeconds -= Time.deltaTime;
+                if (fuelSeconds < 0.0f)
+                {
+                    fuelSeconds = 0.0f;
+                }
+                tank.SendMessage("SetPercentage", fuelSeconds / maxFuelSeconds);
+                if (!thrust.activeSelf)
+                {
+                    thrust.SetActive(true);
                 }
             }
-            body.transform.localScale = scale;
-            rb.AddForce(force);
-            fuelSeconds -= Time.deltaTime;
-            tank.SendMessage("SetPercentage", fuelSeconds / maxFuelSeconds);
-            if (!thrust.activeSelf)
+            else if (thrust.activeSelf)
             {
-                thrust.SetActive(true);
+                thrust.SetActive(false);
             }
-        }
-        else if (thrust.activeSelf)
-        {
-            thrust.SetActive(false);
         }
     }
 
@@ -156,6 +193,7 @@ public class Robot : MonoBehaviour
     {
         if (hasFlashlight)
         {
+            bool toggle = Input.GetButtonDown("Flashlight");
             float delta = Input.GetAxis("Focus") * focusDelta * Time.deltaTime;
             float newX = delta + flashlight.transform.localEulerAngles.x;
             if (newX < 300.0f && newX > 60.0f)
@@ -163,9 +201,24 @@ public class Robot : MonoBehaviour
                 delta = 0.0f;
             }
             flashlight.transform.Rotate(delta, 0.0f, 0.0f);
-            if (Input.GetButtonDown("Flashlight"))
+            if (toggle)
             {
                 flashlight.SetActive(!flashlight.activeSelf);
+            }
+            if (flashlightFindMessage != null)
+            {
+                if (delta != 0.0f)
+                {
+                    rotatedFlashlight = true;
+                }
+                if (toggle)
+                {
+                    toggledFlashlight = true;
+                }
+                if (rotatedFlashlight && toggledFlashlight)
+                {
+                    Destroy(flashlightFindMessage);
+                }
             }
         }
     }
@@ -180,6 +233,10 @@ public class Robot : MonoBehaviour
                 flare.transform.position = flareLaunchPoint.transform.position;
                 flare.SendMessage("Launch", rb.velocity + (flashlight.transform.forward * flareLaunchForce));
             }
+            if (flareFindMessage != null)
+            {
+                Destroy(flareFindMessage);
+            }
         }
     }
 
@@ -193,6 +250,10 @@ public class Robot : MonoBehaviour
                 floodlight.transform.position = floodlightLaunchPoint.transform.position;
                 floodlight.SendMessage("Launch", rb.velocity + (flashlight.transform.forward * floodlightLaunchForce));
             }
+            if (floodlightFindMessage != null)
+            {
+                Destroy(floodlightFindMessage);
+            }
         }
     }
 
@@ -201,12 +262,18 @@ public class Robot : MonoBehaviour
         grounded = true;
     }
 
+    void OnGameStart()
+    {
+        enabled = true;
+    }
+
     void GetFlashlight(GameObject item)
     {
         hasFlashlight = true;
         flashlight = item;
         flashlight.transform.SetParent(flashlightHoldPoint.transform.parent);
         flashlight.transform.localPosition = flashlightHoldPoint.transform.localPosition;
+        flashlight.transform.localEulerAngles = flashlightHoldPoint.transform.localEulerAngles;
         Destroy(flashlightHoldPoint);
         flashlightFindMessage.SetActive(true);
     }
@@ -223,5 +290,11 @@ public class Robot : MonoBehaviour
         hasFloodlight = true;
         floodlight = item;
         floodlightFindMessage.SetActive(true);
+    }
+
+    void Won()
+    {
+        won = true;
+        outOfFuelMessage.SetActive(false);
     }
 }
